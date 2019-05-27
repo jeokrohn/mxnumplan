@@ -23,7 +23,7 @@ This Python script:
 * summarizes these ranges to a minimal set of patterns
 * provisions blocking translation patterns all of these patterns
 
-The script requires Python 3.6 or later.
+The script requires Python 3.6 or later.    
 
 # Usage
 
