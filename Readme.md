@@ -31,25 +31,29 @@ The script requires Python 3.6 or later.
 # Usage
 
 ```
-mxnumplan.py [-h] [--ucm UCM] [--user USER] [--pwd PWD]
-                  [--fromfile FROMFILE] [--readonly] [--analysis]
+usage: mxnumplan.py [-h] [--ucm UCM] [--user USER] [--pwd PWD]
+                    [--fromfile FROMFILE] [--readonly] [--routelist ROUTELIST]
+                    [--analysis]
 
-Provision blocking translation patterns to cover all mobile phone number in
-Mexico. The blocking translation patterns are put into a 'blockmobile'
-partition which is also created if it doesn't exist.
+Provision blocking translation patterns or route patterns to cover all mobile
+phone number in Mexico. The blocking translation patterns or route patterns
+are put into a 'mobile' partition which is also created if it doesn't exist.
+If a route list is specified using --routelist then route patterns are
+provisioned pointing to that route list.
 
 optional arguments:
-  -h, --help           show this help message and exit
-  --ucm UCM            IP or FQDN of UCM publisher host. If ucm is not given
-                       then only the patterns are printed
-  --user USER          AXL user with write access to UCM
-  --pwd PWD            Password for AXL user with write access to UCM
-  --fromfile FROMFILE  name of ZIP file to read patterns from. If the file
-                       name is given as "." then we take the latest
-                       pnn_Publico_??_??_????.zip
-  --readonly           Don't write to UCM. Existing patterns are read if
-                       possible.
-  --analysis           If present, then compare patterns of existing data
-                       sets stored in pnn_Publico_??_??_????.zip
-
+  -h, --help            show this help message and exit
+  --ucm UCM             IP or FQDN of UCM publisher host. If ucm is not given
+                        then only the patterns are printed
+  --user USER           AXL user with write access to UCM
+  --pwd PWD             Password for AXL user with write access to UCM
+  --fromfile FROMFILE   name of ZIP file to read patterns from. If the file
+                        name is given as "." then we take the latest
+                        pnn_Publico_??_??_????.zip
+  --readonly            Don't write to UCM. Existing patterns are read if
+                        possible.
+  --routelist ROUTELIST
+                        provision route patterns pointing to given route list
+  --analysis            If present, then compare patterns of existing data
+                        sets
 ```
