@@ -20,7 +20,7 @@ This Python script:
 * pulls the latest numbering plan from the website
 * identifies the mobile ranges
 * summarizes these ranges to a minimal set of patterns
-* provisions blocking translation patterns all of these patterns
+* provisions blocking translation patterns or route patterns for all of these patterns
 """
 import zipfile
 import ucmaxl
@@ -39,11 +39,12 @@ import re
 from collections import OrderedDict
 import cgi
 import urllib3
+import functools
 
 logging.basicConfig(level=logging.INFO)
 
 BASE_URL = 'https://sns.ift.org.mx:8081/sns-frontend/planes-numeracion/descarga-publica.xhtml'
-PARTITION_NAME = 'blockmobile'
+PARTITION_NAME = 'mobile'
 
 
 def patterns_from_zip(file: RawIOBase) -> Generator[OrderedDict, None, None]:
@@ -102,7 +103,7 @@ def patterns_from_web() -> Generator[OrderedDict, None, None]:
                 temp_file.write(chunk)
             for p in patterns_from_zip(temp_file):
                 yield p
-            temp_file.seek(0,0)
+            temp_file.seek(0, 0)
             with open(file_name, 'wb') as zip_file:
                 while True:
                     chunk = temp_file.read(65536)
@@ -181,6 +182,16 @@ class Pattern:
         else:
             r = f'{self.prefix}{"X" * (10 - len(self.prefix))}'
         return f'\\+52{r}'
+
+    @property
+    def covered_numbers(self):
+        if self.start:
+            r = None
+        if self.summary:
+            r = len(self.summary) * 10 ** (9 - len(self.prefix))
+        else:
+            r = 10 ** (10 - len(self.prefix))
+        return r
 
     def expand(self) -> Generator['Pattern', None, None]:
         """
@@ -287,7 +298,7 @@ def all_zips() -> List[str]:
     Get a list of ZIP files in the current directory sorted from latest to oldest
     :return:
     """
-    re_zip = re.compile(r'pnn_Publico_\d\d_\d\d_\d\d\d\d.zip')
+    re_zip = re.compile(r'pnn_Publico_\d{2}_\d{2}_\d{4}.zip')
     zip_files = os.listdir()
     zip_files = [f for f in zip_files if re_zip.match(f) and os.path.isfile(f)]
 
@@ -372,8 +383,9 @@ def pattern_analysis():
 
         print(f'{old_name} vs. {new_name}')
         patterns_deleted, patterns_added = list_compare(old_patterns, new_patterns)
-        print(f'  {old_name}: {len(old_patterns)} patterns')
-        print(f'  {new_name}: {len(new_patterns)} patterns')
+        p: Pattern
+        print(f'  {old_name}: {len(old_patterns)} patterns covering {sum(p.covered_numbers for p in old_patterns):,} numbers')
+        print(f'  {new_name}: {len(new_patterns)} patterns covering {sum(p.covered_numbers for p in new_patterns):,} numbers')
         print(f'  {len(patterns_added)} patterns added')
         print(f'  {len(patterns_deleted)} patterns deleted')
         changes: List[Tuple[Pattern, str]] = []
@@ -387,8 +399,9 @@ def pattern_analysis():
     # for
     return
 
-def provision_patterns(ucm, user, password, read_only, patterns):
-    # provision blocking translation patterns for optimized patterns
+
+def provision_patterns(ucm, user, password, read_only, route_list_name, patterns):
+    # provision blocking translation patterns or route patterns for optimized patterns
 
     # AXL helper object
     axl = ucmaxl.AXLHelper(ucm, auth=(user, password), version='10.0', verify=False,
@@ -397,11 +410,39 @@ def provision_patterns(ucm, user, password, read_only, patterns):
     # assert existence of partition
     local_partition = assert_partition(axl, PARTITION_NAME, read_only=read_only)
 
-    # get all translations in that partition
+    if route_list_name is None:
+        # provision blocking translation patterns
+        lister = functools.partial(axl.list_translation)
+        adder = functools.partial(axl.add_translation, partition=PARTITION_NAME,
+                                  description=PARTITION_NAME,
+                                  block_enable=True, urgency=True)
+        remover = functools.partial(axl.remove_translation)
+    else:
+        # provision route patterns pointing to given route list
+
+        # assert existence of route list
+        route_list = axl.get_route_list(name=route_list_name)
+        if route_list is None and not read_only:
+            print(f'route list "{route_list_name}" needs to be created before executing the script')
+            exit(2)
+        # set methods for route patterns
+        lister = functools.partial(axl.list_route_pattern)
+
+        adder = functools.partial(axl.add_route_pattern,
+                                  routePartitionName=PARTITION_NAME,
+                                  digitDiscardInstructionName='PreDot',
+                                  patternUrgency=True,
+                                  blockEnable=False,
+                                  destination={'routeListName': route_list_name},
+                                  networkLocation='OffNet',
+                                  description='Mobile number')
+        remover = functools.partial(axl.remove_route_pattern)
+
+    # get all patterns in given
     if local_partition is None:
         ucm_objects = []
     else:
-        ucm_objects = axl.list_translation(routePartitionName=PARTITION_NAME)
+        ucm_objects = lister(routePartitionName=PARTITION_NAME)
 
     print(f'{len(ucm_objects)} patterns exist in UCM')
 
@@ -417,25 +458,18 @@ def provision_patterns(ucm, user, password, read_only, patterns):
 
     # add new patterns
     print('adding patterns...')
-    translation = {
-        'routePartitionName': PARTITION_NAME,
-        'description': 'Block pattern for mobile',
-        'usage': 'Translation',
-        'blockEnable': True,
-        'patternUrgency': True,
-    }
     for pattern in new_patterns:
         print('Adding pattern {}'.format(pattern))
         if not read_only:
-            translation['pattern'] = pattern
-            axl.addTransPattern(transPattern=translation)
+            adder(pattern=pattern)
 
     # remove patterns not needed any more
     print('removing patterns...')
     for pattern in remove_objects:
         print('Removing pattern {}'.format(pattern['pattern']))
         if not read_only:
-            axl.remove_translation(uuid=pattern['uuid'])
+            remover(uuid=pattern['uuid'])
+
 
 def main():
     """
@@ -445,9 +479,12 @@ def main():
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     args = argparse.ArgumentParser(
-        description=f"""Provision blocking translation patterns to cover all mobile phone number in Mexico.
-    The blocking translation patterns are put into a '{PARTITION_NAME}' partition which is also created if it doesn't 
-    exist.
+        description=f"""Provision blocking translation patterns or route patterns to cover all mobile phone number in 
+        Mexico.
+    The blocking translation patterns or route patterns are put into a '{PARTITION_NAME}' partition which is also 
+    created if it doesn't 
+    exist. If a route list is specified using --routelist then route patterns are provisioned pointing to that route 
+    list.
     """)
 
     args.add_argument('--ucm', required=False,
@@ -459,8 +496,9 @@ def main():
                            'latest pnn_Publico_??_??_????.zip')
     args.add_argument('--readonly', required=False, action='store_true',
                       help='Don\'t write to UCM. Existing patterns are read if possible.')
+    args.add_argument('--routelist', required=False, help='provision route patterns pointing to given route list')
     args.add_argument('--analysis', required=False, action='store_true',
-                      help='If present, then compare patterns of exixsting data sets')
+                      help='If present, then compare patterns of existing data sets')
     parsed_args = args.parse_args()
 
     if parsed_args.analysis:
@@ -484,7 +522,7 @@ def main():
     if parsed_args.ucm is None:
         return
     provision_patterns(ucm=parsed_args.ucm, user=parsed_args.user, password=parsed_args.pwd,
-                       read_only=parsed_args.readonly, patterns=patterns)
+                       read_only=parsed_args.readonly, route_list_name=parsed_args.routelist, patterns=patterns)
     return
 
 
