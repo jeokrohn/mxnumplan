@@ -230,7 +230,7 @@ class AXLHelper:
         return self.handle_list_response(r)
 
     def get_route_partition(self, **search_criteria):
-        search_criteria = self.filter_search_criteria(search_criteria, ['name', 'uuid'])
+        search_criteria = self.filter_search_criteria(search_criteria, ['name', 'uuid'], 'name')
         assert search_criteria is not None, 'Search criteria mantatory'
         assert len(search_criteria) == 1, 'Only name or uuid can be used'
 
@@ -355,6 +355,30 @@ class AXLHelper:
         r = self.service.removeRoutePattern(uuid=uuid)
         return r
 
+
+    ######### called party transforms
+    CDPTX_TAGS = ['pattern', 'description', 'usage', 'routePartitionName', 'calledPartyTransformationMask',
+                  'dialPlanName', 'digitDiscardInstructionName', 'patternUrgency', 'routeFilterName',
+                  'calledPartyPrefixDigits', 'calledPartyNumberingPlan', 'calledPartyNumberType',
+                  'mlppPreemptionDisabled']
+
+    def list_called_party_transformation_pattern(self, **search_criteria):
+        search_criteria = self.filter_search_criteria(search_criteria,
+                                                      ['pattern', 'description', 'routePartitionName', 'dialPlanName',
+                                                       'routeFilterName'],
+                                                      'pattern')
+        r = self.service.listCalledPartyTransformationPattern(searchCriteria=search_criteria,
+                                                              returnedTags={t: '' for t in self.CDPTX_TAGS})
+        return self.handle_list_response(r)
+
+    def add_called_party_transformation_pattern(self, **values):
+        r = self.service.addCalledPartyTransformationPattern(calledPartyTransformationPattern=values)
+        return r['return']
+
+    def remove_called_party_transformation_pattern(self, uuid):
+        r = self.service.removeCalledPartyTransformationPattern(uuid=uuid)
+        return r
+
     ######### SIP profile
     SIP_PROFILE_TAGS = ['name', 'description']
 
@@ -446,8 +470,7 @@ class AXLHelper:
             'isScriptTraceEnabled': 'false',
             'sipNormalizationScript': '',
             'allowiXApplicationMedia': 'false',
-            'dialStringInterpretation': 'Phone number consists of characters 0-9, *, #, and + (others treated as URI '
-                                        'addresses)',
+            'dialStringInterpretation': 'Phone number consists of characters 0-9, *, #, and + (others treated as URI addresses)',
             'acceptAudioCodecPreferences': 'Default',
             'mlppUserAuthorization': 'false',
             'isAssuredSipServiceEnabled': 'false',
