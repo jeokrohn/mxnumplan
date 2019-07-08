@@ -412,7 +412,7 @@ def provision_patterns(ucm, user, password, read_only, route_list_name, patterns
 
     if route_list_name is None:
         # provision blocking translation patterns
-        lister = functools.partial(axl.list_translation)
+        lister = functools.partial(axl.list_translation, returned_tags=['pattern'])
         adder = functools.partial(axl.add_translation, partition=PARTITION_NAME,
                                   description=PARTITION_NAME,
                                   block_enable=True, urgency=True)
@@ -426,7 +426,7 @@ def provision_patterns(ucm, user, password, read_only, route_list_name, patterns
             print(f'route list "{route_list_name}" needs to be created before executing the script')
             exit(2)
         # set methods for route patterns
-        lister = functools.partial(axl.list_route_pattern)
+        lister = functools.partial(axl.list_route_pattern, returned_tags=['pattern'])
 
         adder = functools.partial(axl.add_route_pattern,
                                   routePartitionName=PARTITION_NAME,

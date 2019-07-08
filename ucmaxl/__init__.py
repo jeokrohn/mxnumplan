@@ -187,14 +187,13 @@ class AXLHelper:
         return r
 
     ############### user
-    def list_user(self, **search_criteria):
-        returned_tags = search_criteria.pop('returnedTags', None)
+    def list_user(self, returnedTags = None, **search_criteria):
         search_criteria = self.filter_search_criteria(search_criteria,
                                                       ['firstName', 'lastName', 'userid', 'department'],
                                                       'userid')
-        if returned_tags is None:
-            returned_tags = {'uuid': '', 'userid': '', 'firstName': '', 'lastName': ''}
-        r = self.service.listUser(searchCriteria=search_criteria, returnedTags=returned_tags)
+
+        returnedTags = returnedTags or {'uuid': '', 'userid': '', 'firstName': '', 'lastName': ''}
+        r = self.service.listUser(searchCriteria=search_criteria, returnedTags=returnedTags)
         return self.handle_list_response(r)
 
     ############### CSS
@@ -292,19 +291,23 @@ class AXLHelper:
                           'authorizationLevelRequired', 'clientCodeRequired', 'withTag', 'withValueClause',
                           'resourcePriorityNamespaceName', 'routeClass', 'externalCallControl']
 
-    def list_route_pattern(self, **search_criteria):
+    def list_route_pattern(self, returned_tags = None, **search_criteria):
         search_criteria = self.filter_search_criteria(search_criteria, ['pattern', 'description', 'routePartitionName'],
                                                       'pattern')
+        returned_tags = returned_tags or self.ROUTE_PATTERN_TAGS
+
         r = self.service.listRoutePattern(searchCriteria=search_criteria,
-                                          returnedTags={t: '' for t in self.ROUTE_PATTERN_TAGS})
+                                          returnedTags={t:'' for t in returned_tags})
         return self.handle_list_response(r)
 
-    def get_route_pattern(self, **search_criteria):
+    def get_route_pattern(self, returned_tags = None, **search_criteria):
         search_criteria = self.filter_search_criteria(search_criteria, ['uuid', 'pattern', 'routePartitionName'])
         assert search_criteria is not None, 'Search criteria mantatory'
 
+        returned_tags = returned_tags or self.ROUTE_PATTERN_TAGS
+
         try:
-            r = self.service.getRoutePattern(returnedTags={t: '' for t in self.ROUTE_PATTERN_TAGS}, **search_criteria)
+            r = self.service.getRoutePattern(returnedTags={t:'' for t in returned_tags}, **search_criteria)
         except zeep.exceptions.Fault as e:
             if e.message.startswith('Item not valid'):
                 return None
@@ -509,11 +512,14 @@ class AXLHelper:
     ################ translation pattern
     TRANS_PATTERN_TAGS = ['pattern', 'description', 'routePartitionName']
 
-    def list_translation(self, **search_criteria):
+    def list_translation(self, returned_tags=None, **search_criteria):
+
+        returned_tags = returned_tags or self.TRANS_PATTERN_TAGS
+
         search_criteria = self.filter_search_criteria(search_criteria, ['pattern', 'description', 'routePartitionName'],
                                                       'pattern')
         r = self.service.listTransPattern(searchCriteria=search_criteria,
-                                          returnedTags={t: '' for t in self.TRANS_PATTERN_TAGS})
+                                          returnedTags={t: '' for t in returned_tags})
         return self.handle_list_response(r)
 
     def add_translation(self, pattern, partition, description,
