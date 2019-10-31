@@ -19,9 +19,10 @@ updated.
 This Python script:
 
 * pulls the latest numbering plan from the website
+* caches the obtained information locally (same file name as obtained from IFT website)
 * identifies the mobile ranges
 * summarizes these ranges to a minimal set of patterns
-* provisions blocking translation patterns all of these patterns
+* provisions blocking translation patterns or route patterns for all of these patterns
 
 The script requires Python 3.6 or later.
 
@@ -33,7 +34,7 @@ The script requires Python 3.6 or later.
 ```
 usage: mxnumplan.py [-h] [--ucm UCM] [--user USER] [--pwd PWD]
                     [--fromfile FROMFILE] [--readonly] [--routelist ROUTELIST]
-                    [--analysis]
+                    [--analysis] [--debug] [--patterns]
 
 Provision blocking translation patterns or route patterns to cover all mobile
 phone number in Mexico. The blocking translation patterns or route patterns
@@ -56,4 +57,6 @@ optional arguments:
                         provision route patterns pointing to given route list
   --analysis            If present, then compare patterns of existing data
                         sets
+  --debug               enable detailed debug messages to console
+  --patterns            dump resulting patterns to console
 ```
