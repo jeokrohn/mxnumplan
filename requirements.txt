@@ -3,3 +3,4 @@ beautifulsoup4
 lxml
 zeep
 urllib3
+tqdm

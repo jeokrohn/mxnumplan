@@ -40,8 +40,7 @@ from collections import OrderedDict
 import cgi
 import urllib3
 import functools
-
-logging.basicConfig(level=logging.INFO)
+from tqdm import tqdm
 
 BASE_URL = 'https://sns.ift.org.mx:8081/sns-frontend/planes-numeracion/descarga-publica.xhtml'
 PARTITION_NAME = 'mobile'
@@ -365,7 +364,7 @@ def list_compare(old: List, new: List) -> Tuple[List, List]:
     return deleted, added
 
 
-def pattern_analysis():
+def pattern_analysis(parsed_args):
     # read all CSVs
     all_patterns: List[Tuple[str, List[Pattern]]] = []
     for zip_name in all_zips():
@@ -388,13 +387,14 @@ def pattern_analysis():
         print(f'  {new_name}: {len(new_patterns)} patterns covering {sum(p.covered_numbers for p in new_patterns):,} numbers')
         print(f'  {len(patterns_added)} patterns added')
         print(f'  {len(patterns_deleted)} patterns deleted')
-        changes: List[Tuple[Pattern, str]] = []
-        changes.extend(((p, '  added') for p in patterns_added))
-        changes.extend(((p, 'removed') for p in patterns_deleted))
-        # sort on the 1st element of the tuple: the pattern
-        changes.sort(key=lambda x: x[0])
-        if changes:
-            print('\n'.join((f'  {c[1]} {c[0].for_ucm}' for c in changes)))
+        if parsed_args.patterns:
+            changes: List[Tuple[Pattern, str]] = []
+            changes.extend(((p, '  added') for p in patterns_added))
+            changes.extend(((p, 'removed') for p in patterns_deleted))
+            # sort on the 1st element of the tuple: the pattern
+            changes.sort(key=lambda x: x[0])
+            if changes:
+                print('\n'.join((f'  {c[1]} {c[0].for_ucm}' for c in changes)))
         # if
     # for
     return
@@ -458,15 +458,15 @@ def provision_patterns(ucm, user, password, read_only, route_list_name, patterns
 
     # add new patterns
     print('adding patterns...')
-    for pattern in new_patterns:
-        print('Adding pattern {}'.format(pattern))
+    for pattern in tqdm(new_patterns):
+        # print('Adding pattern {}'.format(pattern))
         if not read_only:
             adder(pattern=pattern)
 
     # remove patterns not needed any more
     print('removing patterns...')
-    for pattern in remove_objects:
-        print('Removing pattern {}'.format(pattern['pattern']))
+    for pattern in tqdm(remove_objects):
+        # print('Removing pattern {}'.format(pattern['pattern']))
         if not read_only:
             remover(uuid=pattern['uuid'])
 
@@ -499,11 +499,22 @@ def main():
     args.add_argument('--routelist', required=False, help='provision route patterns pointing to given route list')
     args.add_argument('--analysis', required=False, action='store_true',
                       help='If present, then compare patterns of existing data sets')
+    args.add_argument('--debug', required=False, action='store_true',
+                      help='enable detailed debug messages to console')
+    args.add_argument('--patterns', required=False, action='store_true',
+                      help='dump resulting patterns to console')
+
     parsed_args = args.parse_args()
 
+    if parsed_args.debug:
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
+
     if parsed_args.analysis:
-        pattern_analysis()
+        pattern_analysis(parsed_args=parsed_args)
         return
+
     if parsed_args.fromfile is not None:
         # we want to read from a zip file
         if parsed_args.fromfile == '.':
@@ -517,10 +528,13 @@ def main():
 
     patterns = optimize_patterns(patterns)
 
-    print('\n'.join((p.for_ucm for p in patterns)))
+    if parsed_args.patterns:
+        print('\n'.join((p.for_ucm for p in patterns)))
     print(f'summarized to {len(patterns)} patterns')
+
     if parsed_args.ucm is None:
         return
+
     provision_patterns(ucm=parsed_args.ucm, user=parsed_args.user, password=parsed_args.pwd,
                        read_only=parsed_args.readonly, route_list_name=parsed_args.routelist, patterns=patterns)
     return
